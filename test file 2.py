@@ -18,11 +18,10 @@ class RegressionModel(object):
 
     def add_intercept(self):
         self.x = x.assign(intercept=pd.Series([1]*np.shape(x)[0], index = self.x.index))
-
     def ols_regression(self):
         if self.regression_type == "ols":                                #key is variable
-            X = self.x.to_numpy(dtype=np.float64)
-            Y = self.y.to_numpy(dtype=np.float64).flatten()
+            X = np.array(self.x)
+            Y = np.array(self.y).reshape(-1,1)
             n, k = X.shape                                               #df parameters
             df = n - k
             beta_coef = np.linalg.inv(X.T @ X) @ X.T @ Y               #coefficient
@@ -77,3 +76,4 @@ reg = RegressionModel(x, y, create_intercept=True)
 
 w = reg.ols_regression()
 print(reg.summary())
+
