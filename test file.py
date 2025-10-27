@@ -1,75 +1,69 @@
-#si-exercise
-
-import pandas as pd
 import numpy as np
-from scipy.stats import t
+import pandas as pd
+from scipy import stats
 
-class RegressionModel(object):
-    def __init__(self, x, y, create_intercept=True, regression_type="ols"):
-        self.x = pd.DataFrame(x)
-        self.y = pd.DataFrame(y)
+class RegressionModel():
+    def __init__(self, x, y, create_intercept = True, regression_type = "OLS"):
+        self.x = x.copy()
+        self.y = y.copy()
         self.create_intercept = create_intercept
         self.regression_type = regression_type
         self.results = {}
 
         if self.create_intercept:
-            if "intercept" not in self.x.columns:
-                self.add_intercept()
-
+            self.add_intercept()
+    
     def add_intercept(self):
-        self.x = x.assign(intercept=pd.Series([1]*np.shape(x)[0], index = self.x.index))
+        if "intercept" not in self.x.columns:
+            self.x = self.x.assign(intercept = pd.Series([1] * self.x.shape[0], index = self.x.index))
 
     def ols_regression(self):
-        if self.regression_type == "ols":                                #key is variable
-            X = self.x.to_numpy(dtype=np.float64)
-            Y = self.y.to_numpy(dtype=np.float64).flatten()
-            n, k = X.shape                                               #df parameters
-            df = n - k
-            beta_coef = np.linalg.inv(X.T @ X) @ X.T @ Y               #coefficient
-            s_2 = ((Y.T @ Y) - (Y.T @ X @ np.linalg.inv(X.T @ X) @ X.T @ Y)) / df #unbiased variance matrix
-            cov_B = s_2 * np.linalg.inv(X.T @ X)                         #covariance of b
-            variance = np.diag(cov_B)                                    #variance
-            standardError = np.sqrt(variance)                            #sqrt of variance
-            t_stat = beta_coef.flatten() / standardError.flatten()       #t stat
-            p_val = t.sf(t_stat, df)                                     #p value
+        X = self.x.to_numpy(dtype=np.float64)
+        y = self.y.to_numpy(dtype=np.float64).flatten()
 
-            for num, val in enumerate(self.x.columns):
-                self.results[val] = {
-                    "coefficient": float(beta_coef[num]),
-                    "standard_error": float(standardError[num]),
-                    "t_stat": float(t_stat[num]),
-                    "p_value": float(p_val[num]),
-                }
+        XTX_inv = np.linalg.inv(X.T @ X)
+        beta_hat = XTX_inv @ X.T @ y
 
-            return self.results
+        y_hat = (X @ beta_hat).flatten()
+        residuals = y - y_hat
+
+        n = X.shape[0]
+        k = X.shape[1]
+
+        sigma2 = float((residuals.T @ residuals) / (n - k))
+        var_beta = sigma2 * XTX_inv
+        se_beta = np.sqrt(np.diag(var_beta))
+
+        t_stats = beta_hat / se_beta
+
+        p_values = 1 - stats.t.cdf(t_stats, df=n - k)
+        p_values = np.clip(p_values, 0, 1)
+
+        self.results = {}
+        for i, col in enumerate(self.x.columns):
+            self.results[col] = {
+                "coefficient": float(beta_hat[i]),
+                "standard_error": float(se_beta[i]),
+                "t_stat": float(t_stats[i]),
+                "p_value": float(p_values[i])
+            }
+    
     def summary(self):
-        if not self.results:
-            self.ols_regression()
 
-        var_name = []
-        coef_value = []
-        standardError = []
-        t_stat = []
-        p_value = []
+        summary_df = pd.DataFrame([
+            {"Variable name": var,
+             "coefficient value": res["coefficient"],
+             "standard error": res["standard_error"],
+             "t-statistic": res["t_stat"],
+             "p-value": res["p_value"]
+            }
+            for var, res in self.results.items()
+        ])
 
-        for key, value in self.results.items():
-            var_name.append(key)
-            coef_value.append(value['coefficient'])
-            standardError.append(value['standard_error'])
-            t_stat.append(value['t_stat'])
-            p_value.append(value['p_value'])
+        print(summary_df.to_string(index = False))
+    
+        return summary_df
 
-
-        table_summary = pd.DataFrame({
-            "Variable name": var_name,
-            "coefficient value": coef_value,
-            "standard error": standardError,
-            "t-statistic": t_stat,
-            "p-value": p_value
-            })
-
-        return table_summary
-        
 data = pd.read_csv("tests/files/assignment8Data.csv")
 x = data[['sex','age','educ','white']]
 y = data['incwage']
